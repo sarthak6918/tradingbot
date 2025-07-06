@@ -16,9 +16,8 @@ SYMBOL = 'BTCUSDT'
 INTERVAL = Client.KLINE_INTERVAL_1MINUTE
 LIMIT = 500
 ADX_THRESHOLD = 20
-CAPITAL = 100  # USDT used per trade
-TP_USDT = 30   # Profit target in USDT
-SL_USDT = 10   # Stop-loss in USDT
+LEVERAGE = 10
+CAPITAL = 100  # Capital you want to use per trade
 
 def get_klines(symbol, interval, limit):
     klines = client.get_klines(symbol=symbol, interval=interval, limit=limit)
@@ -39,7 +38,6 @@ def calculate_indicators(df):
 
     adx = ta.trend.ADXIndicator(df['high'], df['low'], df['close'], window=14)
     df['adx'] = adx.adx()
-
     return df
 
 def check_buy_signal(df):
@@ -48,36 +46,54 @@ def check_buy_signal(df):
     k_cross = prev['k'] < prev['d'] and latest['k'] > latest['d']
     oversold = latest['k'] < 0.3 and latest['d'] < 0.3
     trend = latest['adx'] > ADX_THRESHOLD
-
     return k_cross and oversold and trend
 
 def monitor_trade(entry_price, qty):
+    capital_used = entry_price * qty
+    tp_usdt = capital_used * 0.30
+    sl_usdt = capital_used * 0.10
+
+    print(f"💰 Capital Used: {capital_used:.2f} USDT")
+    print(f"🎯 TP: {tp_usdt:.2f} | 🛑 SL: {sl_usdt:.2f}")
+
     while True:
         try:
             mark_price_data = client.futures_mark_price(symbol=SYMBOL)
             current_price = float(mark_price_data['markPrice'])
-            pnl = (current_price - entry_price) * qty * 10  # 10x leverage assumed
+            pnl = (current_price - entry_price) * qty * LEVERAGE
 
             print(f"🔄 Monitoring PnL: {pnl:.2f} USDT")
 
-            if pnl >= TP_USDT:
+            if pnl >= tp_usdt:
                 print("🎯 Take Profit Hit! Closing trade...")
-                client.futures_create_order(symbol=SYMBOL, side=SIDE_SELL, type=ORDER_TYPE_MARKET, quantity=qty, reduceOnly=True)
+                client.futures_create_order(
+                    symbol=SYMBOL,
+                    side=SIDE_SELL,
+                    type=ORDER_TYPE_MARKET,
+                    quantity=qty,
+                    reduceOnly=True
+                )
                 break
-            elif pnl <= -SL_USDT:
+            elif pnl <= -sl_usdt:
                 print("🛑 Stop Loss Hit! Closing trade...")
-                client.futures_create_order(symbol=SYMBOL, side=SIDE_SELL, type=ORDER_TYPE_MARKET, quantity=qty, reduceOnly=True)
+                client.futures_create_order(
+                    symbol=SYMBOL,
+                    side=SIDE_SELL,
+                    type=ORDER_TYPE_MARKET,
+                    quantity=qty,
+                    reduceOnly=True
+                )
                 break
 
-            time.sleep(10)  # check every 10 seconds
+            time.sleep(10)
 
         except Exception as e:
-            print("⚠️ Error while monitoring trade:", e)
+            print("⚠️ Error monitoring trade:", e)
             time.sleep(10)
 
 def place_trade():
     try:
-        client.futures_change_leverage(symbol=SYMBOL, leverage=10)
+        client.futures_change_leverage(symbol=SYMBOL, leverage=LEVERAGE)
         price = float(client.futures_symbol_ticker(symbol=SYMBOL)['price'])
         qty = round(CAPITAL / price, 5)
 
@@ -87,7 +103,7 @@ def place_trade():
             type=ORDER_TYPE_MARKET,
             quantity=qty
         )
-        print(f"✅ Trade Executed at price: {price}, qty: {qty}")
+        print(f"✅ Trade Executed: price = {price}, qty = {qty}")
         monitor_trade(entry_price=price, qty=qty)
 
     except Exception as e:
@@ -101,9 +117,11 @@ def main():
         if check_buy_signal(df):
             place_trade()
         else:
-            print("No valid buy signal.")
+            print("📉 No valid buy signal.")
 
+        print("🕒 Waiting 60 seconds...\n")
         time.sleep(60)
 
 if __name__ == "__main__":
     main()
+
