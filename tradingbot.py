@@ -3,7 +3,7 @@ import ta
 import time
 import sys
 from binance.client import Client
-from binance.enums import SIDE_BUY, ORDER_TYPE_MARKET
+from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_TYPE_MARKET
 
 # Enable real-time log flushing for nohup
 sys.stdout.reconfigure(line_buffering=True)
@@ -38,7 +38,6 @@ def calculate_indicators(df):
     stoch_rsi = (df['rsi'] - df['rsi'].rolling(14).min()) / (df['rsi'].rolling(14).max() - df['rsi'].rolling(14).min())
     df['k'] = stoch_rsi.rolling(3).mean()
     df['d'] = df['k'].rolling(3).mean()
-
     adx = ta.trend.ADXIndicator(df['high'], df['low'], df['close'], window=14)
     df['adx'] = adx.adx()
     return df
