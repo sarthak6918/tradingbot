@@ -87,9 +87,7 @@ def place_trade():
     try:
         client.futures_change_leverage(symbol=SYMBOL, leverage=10)
         price = float(client.futures_symbol_ticker(symbol=SYMBOL)['price'])
-        usdt_balance = get_available_usdt()
-        employed_capital = usdt_balance * CAPITAL_PERCENTAGE
-        qty = round(employed_capital / price, 5)
+        qty = round(CAPITAL / price, 4)  # ⚠️ Updated to valid precision
 
         order = client.futures_create_order(
             symbol=SYMBOL,
@@ -97,12 +95,11 @@ def place_trade():
             type=ORDER_TYPE_MARKET,
             quantity=qty
         )
-        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ✅ Trade Executed at {price}, Qty: {qty}, Capital: {employed_capital:.2f} USDT")
-
-        monitor_trade(entry_price=price, qty=qty, employed_capital=employed_capital)
+        print(f"✅ Trade Executed at price: {price}, qty: {qty}")
+        monitor_trade(entry_price=price, qty=qty)
 
     except Exception as e:
-        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ❌ Trade failed: {e}")
+        print("❌ Trade execution failed:", e)
 
 def main():
     while True:
