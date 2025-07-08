@@ -63,7 +63,7 @@ def place_trade():
         price = float(client.futures_symbol_ticker(symbol=SYMBOL)['price'])
         usdt_balance = get_available_usdt()
         employed_capital = usdt_balance * CAPITAL_PERCENTAGE
-        qty = round(employed_capital / price, 5)
+        qty = round(employed_capital / price, 3)
 
         order = client.futures_create_order(
             symbol=SYMBOL,
