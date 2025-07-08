@@ -9,7 +9,7 @@ from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_TYPE_MARKET
 sys.stdout.reconfigure(line_buffering=True)
 
 # ---- API Credentials ----
-api_key = '9ea238b11935143104c920d35d8c390f6fd6d473adaa13b9b9c02d239d1134fc'
+api_key = '920d35d8c390f6fd6d473adaa13b9b9c02d239d1134fc'
 api_secret = '3f5db0787e7307c50051ce2dac855f0bb3a6b2481b9b0f1b64ba2b4210df43e1'
 
 client = Client(api_key, api_secret)
@@ -21,8 +21,6 @@ INTERVAL = Client.KLINE_INTERVAL_1MINUTE
 LIMIT = 500
 ADX_THRESHOLD = 20
 CAPITAL_PERCENTAGE = 0.2  # 20% of available USDT
-TP_MULTIPLIER = 0.3  # 30% gain on employed capital
-SL_MULTIPLIER = 0.1  # 10% loss on employed capital
 
 def get_klines(symbol, interval, limit):
     klines = client.get_klines(symbol=symbol, interval=interval, limit=limit)
@@ -59,37 +57,13 @@ def get_available_usdt():
             return float(asset['balance'])
     return 0
 
-def monitor_trade(entry_price, qty, employed_capital):
-    while True:
-        try:
-            mark_price_data = client.futures_mark_price(symbol=SYMBOL)
-            current_price = float(mark_price_data['markPrice'])
-            pnl = (current_price - entry_price) * qty * 10  # 10x leverage
-            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] 🔄 PnL: {pnl:.2f} USDT")
-
-            if pnl >= employed_capital * TP_MULTIPLIER:
-                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] 🎯 Take Profit Hit! Closing trade...")
-                client.futures_create_order(symbol=SYMBOL, side=SIDE_SELL, type=ORDER_TYPE_MARKET, quantity=qty, reduceOnly=True)
-                break
-            elif pnl <= -employed_capital * SL_MULTIPLIER:
-                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] 🛑 Stop Loss Hit! Closing trade...")
-                client.futures_create_order(symbol=SYMBOL, side=SIDE_SELL, type=ORDER_TYPE_MARKET, quantity=qty, reduceOnly=True)
-                break
-
-            time.sleep(10)
-        except Exception as e:
-            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ⚠️ Error monitoring trade: {e}")
-            time.sleep(10)
-
 def place_trade():
     try:
         client.futures_change_leverage(symbol=SYMBOL, leverage=10)
-
-        usdt = get_available_usdt()
-        employed_capital = usdt * CAPITAL_PERCENTAGE
-
         price = float(client.futures_symbol_ticker(symbol=SYMBOL)['price'])
-        qty = round(employed_capital / price, 3)  # precision adjusted for BTC
+        usdt_balance = get_available_usdt()
+        employed_capital = usdt_balance * CAPITAL_PERCENTAGE
+        qty = round(employed_capital / price, 5)
 
         order = client.futures_create_order(
             symbol=SYMBOL,
@@ -97,11 +71,10 @@ def place_trade():
             type=ORDER_TYPE_MARKET,
             quantity=qty
         )
-        print(f"✅ Trade Executed at price: {price}, qty: {qty}")
-        monitor_trade(entry_price=price, qty=qty, employed_capital=employed_capital)
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ✅ Trade Executed at {price}, Qty: {qty}, Capital: {employed_capital:.2f} USDT")
 
     except Exception as e:
-        print(f"❌ Trade execution failed: {e}")
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ❌ Trade failed: {e}")
 
 def main():
     while True:
