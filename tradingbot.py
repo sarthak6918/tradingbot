@@ -1,8 +1,12 @@
 import pandas as pd
 import ta
 import time
+import sys
 from binance.client import Client
 from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_TYPE_MARKET
+
+# Enable real-time log flushing for nohup
+sys.stdout.reconfigure(line_buffering=True)
 
 # ---- API Credentials ----
 api_key = '920d35d8c390f6fd6d473adaa13b9b9c02d239d1134fc'
@@ -16,8 +20,9 @@ SYMBOL = 'BTCUSDT'
 INTERVAL = Client.KLINE_INTERVAL_1MINUTE
 LIMIT = 500
 ADX_THRESHOLD = 20
-LEVERAGE = 10
-CAPITAL = 100  # Capital you want to use per trade
+CAPITAL_PERCENTAGE = 0.2  # 20% of available USDT
+TP_MULTIPLIER = 0.3  # 30% gain on employed capital
+SL_MULTIPLIER = 0.1  # 10% loss on employed capital
 
 def get_klines(symbol, interval, limit):
     klines = client.get_klines(symbol=symbol, interval=interval, limit=limit)
@@ -48,54 +53,43 @@ def check_buy_signal(df):
     trend = latest['adx'] > ADX_THRESHOLD
     return k_cross and oversold and trend
 
-def monitor_trade(entry_price, qty):
-    capital_used = entry_price * qty
-    tp_usdt = capital_used * 0.30
-    sl_usdt = capital_used * 0.10
+def get_available_usdt():
+    balance = client.futures_account_balance()
+    for asset in balance:
+        if asset['asset'] == 'USDT':
+            return float(asset['balance'])
+    return 0
 
-    print(f"💰 Capital Used: {capital_used:.2f} USDT")
-    print(f"🎯 TP: {tp_usdt:.2f} | 🛑 SL: {sl_usdt:.2f}")
-
+def monitor_trade(entry_price, qty, employed_capital):
     while True:
         try:
             mark_price_data = client.futures_mark_price(symbol=SYMBOL)
             current_price = float(mark_price_data['markPrice'])
-            pnl = (current_price - entry_price) * qty * LEVERAGE
+            pnl = (current_price - entry_price) * qty * 10  # 10x leverage
 
-            print(f"🔄 Monitoring PnL: {pnl:.2f} USDT")
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] 🔄 PnL: {pnl:.2f} USDT")
 
-            if pnl >= tp_usdt:
-                print("🎯 Take Profit Hit! Closing trade...")
-                client.futures_create_order(
-                    symbol=SYMBOL,
-                    side=SIDE_SELL,
-                    type=ORDER_TYPE_MARKET,
-                    quantity=qty,
-                    reduceOnly=True
-                )
+            if pnl >= employed_capital * TP_MULTIPLIER:
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] 🎯 Take Profit Hit! Closing trade...")
+                client.futures_create_order(symbol=SYMBOL, side=SIDE_SELL, type=ORDER_TYPE_MARKET, quantity=qty, reduceOnly=True)
                 break
-            elif pnl <= -sl_usdt:
-                print("🛑 Stop Loss Hit! Closing trade...")
-                client.futures_create_order(
-                    symbol=SYMBOL,
-                    side=SIDE_SELL,
-                    type=ORDER_TYPE_MARKET,
-                    quantity=qty,
-                    reduceOnly=True
-                )
+            elif pnl <= -employed_capital * SL_MULTIPLIER:
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] 🛑 Stop Loss Hit! Closing trade...")
+                client.futures_create_order(symbol=SYMBOL, side=SIDE_SELL, type=ORDER_TYPE_MARKET, quantity=qty, reduceOnly=True)
                 break
 
             time.sleep(10)
-
         except Exception as e:
-            print("⚠️ Error monitoring trade:", e)
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ⚠️ Error monitoring trade: {e}")
             time.sleep(10)
 
 def place_trade():
     try:
-        client.futures_change_leverage(symbol=SYMBOL, leverage=LEVERAGE)
+        client.futures_change_leverage(symbol=SYMBOL, leverage=10)
         price = float(client.futures_symbol_ticker(symbol=SYMBOL)['price'])
-        qty = round(CAPITAL / price, 5)
+        usdt_balance = get_available_usdt()
+        employed_capital = usdt_balance * CAPITAL_PERCENTAGE
+        qty = round(employed_capital / price, 5)
 
         order = client.futures_create_order(
             symbol=SYMBOL,
@@ -103,11 +97,12 @@ def place_trade():
             type=ORDER_TYPE_MARKET,
             quantity=qty
         )
-        print(f"✅ Trade Executed: price = {price}, qty = {qty}")
-        monitor_trade(entry_price=price, qty=qty)
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ✅ Trade Executed at {price}, Qty: {qty}, Capital: {employed_capital:.2f} USDT")
+
+        monitor_trade(entry_price=price, qty=qty, employed_capital=employed_capital)
 
     except Exception as e:
-        print("❌ Trade execution failed:", e)
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] ❌ Trade failed: {e}")
 
 def main():
     while True:
@@ -117,9 +112,8 @@ def main():
         if check_buy_signal(df):
             place_trade()
         else:
-            print("📉 No valid buy signal.")
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] 📉 No valid buy signal.")
 
-        print("🕒 Waiting 60 seconds...\n")
         time.sleep(60)
 
 if __name__ == "__main__":
