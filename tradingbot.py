@@ -89,7 +89,7 @@ def place_trade():
         employed_capital = usdt * CAPITAL_PERCENTAGE
 
         price = float(client.futures_symbol_ticker(symbol=SYMBOL)['price'])
-        qty = round(employed_capital / price, 5)  # precision adjusted for BTC
+        qty = round(employed_capital / price, 3)  # precision adjusted for BTC
 
         order = client.futures_create_order(
             symbol=SYMBOL,
