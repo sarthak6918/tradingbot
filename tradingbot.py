@@ -9,8 +9,8 @@ from binance.enums import SIDE_BUY, ORDER_TYPE_MARKET
 sys.stdout.reconfigure(line_buffering=True)
 
 # ---- API Credentials ----
-api_key = '920d35d8c390f6fd6d473adaa13b9b9c02d239d1134fc'
-api_secret = '3f5db0787e7307c50051ce2dac855f0bb3a6b2481b9b0f1b64ba2b4210df43e1'
+api_key ='920d35d8c390f6fd6d473adaa13b9b9c02d239d1134fc'
+api_secret ='3f5db0787e7307c50051ce2dac855f0bb3a6b2481b9b0f1b64ba2b4210df43e1'
 
 client = Client(api_key, api_secret)
 client.FUTURES_URL = 'https://testnet.binancefuture.com/fapi'
