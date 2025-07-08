@@ -3,13 +3,13 @@ import ta
 import time
 import sys
 from binance.client import Client
-from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_TYPE_MARKET
+from binance.enums import SIDE_BUY, ORDER_TYPE_MARKET
 
 # Enable real-time log flushing for nohup
 sys.stdout.reconfigure(line_buffering=True)
 
 # ---- API Credentials ----
-api_key = '9ea238b11935143104c920d35d8c390f6fd6d473adaa13b9b9c02d239d1134fc'
+api_key = '920d35d8c390f6fd6d473adaa13b9b9c02d239d1134fc'
 api_secret = '3f5db0787e7307c50051ce2dac855f0bb3a6b2481b9b0f1b64ba2b4210df43e1'
 
 client = Client(api_key, api_secret)
@@ -38,6 +38,7 @@ def calculate_indicators(df):
     stoch_rsi = (df['rsi'] - df['rsi'].rolling(14).min()) / (df['rsi'].rolling(14).max() - df['rsi'].rolling(14).min())
     df['k'] = stoch_rsi.rolling(3).mean()
     df['d'] = df['k'].rolling(3).mean()
+
     adx = ta.trend.ADXIndicator(df['high'], df['low'], df['close'], window=14)
     df['adx'] = adx.adx()
     return df
@@ -63,7 +64,7 @@ def place_trade():
         price = float(client.futures_symbol_ticker(symbol=SYMBOL)['price'])
         usdt_balance = get_available_usdt()
         employed_capital = usdt_balance * CAPITAL_PERCENTAGE
-        qty = round(employed_capital / price, 3)
+        qty = round(employed_capital / price, 5)
 
         order = client.futures_create_order(
             symbol=SYMBOL,
