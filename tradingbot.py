@@ -40,7 +40,6 @@ def calculate_indicators(df):
     stoch_rsi = (df['rsi'] - df['rsi'].rolling(14).min()) / (df['rsi'].rolling(14).max() - df['rsi'].rolling(14).min())
     df['k'] = stoch_rsi.rolling(3).mean()
     df['d'] = df['k'].rolling(3).mean()
-
     adx = ta.trend.ADXIndicator(df['high'], df['low'], df['close'], window=14)
     df['adx'] = adx.adx()
     return df
@@ -66,7 +65,6 @@ def monitor_trade(entry_price, qty, employed_capital):
             mark_price_data = client.futures_mark_price(symbol=SYMBOL)
             current_price = float(mark_price_data['markPrice'])
             pnl = (current_price - entry_price) * qty * 10  # 10x leverage
-
             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] 🔄 PnL: {pnl:.2f} USDT")
 
             if pnl >= employed_capital * TP_MULTIPLIER:
@@ -86,8 +84,12 @@ def monitor_trade(entry_price, qty, employed_capital):
 def place_trade():
     try:
         client.futures_change_leverage(symbol=SYMBOL, leverage=10)
+
+        usdt = get_available_usdt()
+        employed_capital = usdt * CAPITAL_PERCENTAGE
+
         price = float(client.futures_symbol_ticker(symbol=SYMBOL)['price'])
-        qty = round(CAPITAL / price, 4)  # ⚠️ Updated to valid precision
+        qty = round(employed_capital / price, 5)  # precision adjusted for BTC
 
         order = client.futures_create_order(
             symbol=SYMBOL,
@@ -96,10 +98,10 @@ def place_trade():
             quantity=qty
         )
         print(f"✅ Trade Executed at price: {price}, qty: {qty}")
-        monitor_trade(entry_price=price, qty=qty)
+        monitor_trade(entry_price=price, qty=qty, employed_capital=employed_capital)
 
     except Exception as e:
-        print("❌ Trade execution failed:", e)
+        print(f"❌ Trade execution failed: {e}")
 
 def main():
     while True:
@@ -115,4 +117,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
